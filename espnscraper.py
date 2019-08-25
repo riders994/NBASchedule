@@ -85,23 +85,30 @@ def get_date_vectors():
 
 def build_conflict_metrics():
     data = get_date_vectors()
+    # 3.0 Calculating each team's score
     final_dates = data['dates']
     team_dict = data['teams']
+    # 3.1 Builds a date-vector for each team
     table_dict = {team: np.isin(final_dates, dates).astype(int) for team, dates in team_dict.items()}
     date_table = pd.DataFrame.from_dict(table_dict)
+    # 3.2 There is definitely a less dumb way to accomplish this section than to send to pandas and pull from numpy, but whatever
     date_values = date_table.values
     daily = np.sum(date_values, 1)/2
     conflicted = np.sum(date_values * daily[:, None], 0)
     vector = pd.Series(conflicted/conflicted.mean(), index = date_table.columns)
     vector.to_csv('schedule_vector.csv')
 
+    # 4.0 Building the team x team chart
     team_matrix = np.zeros([30,30])
+    # Is there a smarter way to iterate this?
     for i in range(date_values.shape[1] - 1):
+        # 4.1 Pulls one team
+        primary = date_values[:,i]
         for j in range(1, date_values.shape[1]):
-            primary = date_values[:,i]
+            # 4.2 Calculates conflicts with other teams
             cons = (primary * (primary == date_values[:,j]))
             team_matrix[i, j] = cons.sum() % 82
-            team_matrix[j,i] = cons.sum() % 82
+            team_matrix[j, i] = cons.sum() % 82
     frame = pd.DataFrame(team_matrix, index=date_table.columns, columns=date_table.columns, dtype=int)
     frame.to_csv('schedule_frame.csv')
 
