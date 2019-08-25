@@ -25,17 +25,19 @@ def build_sched_url(team, url_form=URL):
 
 def date_process(data):
     """
-    Processes ESPN's thankfully formulaic schedule. May turn if statement in to a try-catch?
+    Processes ESPN's thankfully formulaic schedule.
     :param data: Selenium data. Schedule data from espn.
     :return: np.array. Array of dates
     """
     date_results = []
     for i, el in enumerate(data):
-        if i and not (i % 5):
+        try:
             d = dt.datetime.strptime(el.text + " 2020", "%a, %b %d %Y")
             if d.month > 6:
-                d = d.replace(year = 2019)
+                d = d.replace(year=2019)
             date_results.append(d)
+        except ValueError:
+            pass
     return np.array(date_results)
 
 
@@ -54,6 +56,42 @@ def fetch_team(driver, dest):
     return date_process(elem)
 
 
+def create_schedule_vector(date_df):
+    # 3.2 There is definitely a less dumb way to accomplish this section than to send to pandas and pull from numpy,
+    # but whatever
+    date_values = date_df.values
+    daily = np.sum(date_values, 1) / 2
+    conflicted = np.sum(date_values * daily[:, None], 0)
+    vector = pd.Series(conflicted / conflicted.mean(), index=date_df.columns)
+    vector.to_csv('schedule_vector.csv', header=True)
+
+
+def create_conflict_matrix(date_df):
+    date_values = date_df.values
+    # 4.0 Building the team x team chart
+    team_matrix = np.zeros([30,30])
+    # Is there a smarter way to iterate this?
+    for i in range(date_values.shape[1] - 1):
+        # 4.1 Pulls one team
+        primary = date_values[:, i]
+        for j in range(1, date_values.shape[1]):
+            # 4.2 Calculates conflicts with other teams
+            cons = (primary * (primary == date_values[:, j]))
+            team_matrix[i, j] = cons.sum() % 82
+            team_matrix[j, i] = cons.sum() % 82
+    frame = pd.DataFrame(team_matrix, index=date_df.columns, columns=date_df.columns, dtype=int)
+    frame.to_csv('schedule_frame.csv')
+
+
+def create_playoff_score(date_df):
+    x = pd.Series(date_df.index)
+    w = np.floor(x / 7 + 2)
+    y = 1 - 1 / w
+    team_vec = date_df.multiply(y, axis='index').sum(axis=0)
+    scaled_vec = 2 * (team_vec - team_vec.mean())
+    scaled_vec.sort_values().to_csv('playoff_score.csv', header=True)
+
+
 def get_date_vectors():
     """
     Grabs the dates of very game for every team
@@ -63,7 +101,7 @@ def get_date_vectors():
     """
     # 2.0
     # 2.1 Start up the Selenium driver
-    driver = webdriver.Firefox()
+    driver = webdriver.Chrome()
 
     # 2.2 Set up output
     team_dict = {}
@@ -85,25 +123,15 @@ def get_date_vectors():
 
 def build_conflict_metrics():
     data = get_date_vectors()
+    # 3.0 Calculating each team's score
     final_dates = data['dates']
     team_dict = data['teams']
+    # 3.1 Builds a date-vector for each team
     table_dict = {team: np.isin(final_dates, dates).astype(int) for team, dates in team_dict.items()}
     date_table = pd.DataFrame.from_dict(table_dict)
-    date_values = date_table.values
-    daily = np.sum(date_values, 1)/2
-    conflicted = np.sum(date_values * daily[:, None], 0)
-    vector = pd.Series(conflicted/conflicted.mean(), index = date_table.columns)
-    vector.to_csv('schedule_vector.csv')
-
-    team_matrix = np.zeros([30,30])
-    for i in range(date_values.shape[1] - 1):
-        for j in range(1, date_values.shape[1]):
-            primary = date_values[:,i]
-            cons = (primary * (primary == date_values[:,j]))
-            team_matrix[i, j] = cons.sum() % 82
-            team_matrix[j,i] = cons.sum() % 82
-    frame = pd.DataFrame(team_matrix, index=date_table.columns, columns=date_table.columns, dtype=int)
-    frame.to_csv('schedule_frame.csv')
+    create_schedule_vector(date_table)
+    create_conflict_matrix(date_table)
+    create_playoff_score(date_table)
 
 
 if __name__ == '__main__':
