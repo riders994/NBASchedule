@@ -9,7 +9,7 @@ This is the python 3.6+ implementation of my previous R script. I will eventuall
 
 # 1.0 Setting global variables. Schedule url formula, XPath to navigate the tables, and team list
 
-URL = "https://www.espn.com/nba/team/schedule/_/name/{}/season/2020"
+URL = "https://www.espn.com/nba/team/schedule/_/name/{}/season/2021"
 XPATH = '/html/body/div[1]/div/div/div/div/div[5]/div[2]/div[5]/div[1]/div[1]/article/div/section/section/section/table' \
         '/tbody/tr/td/div/div/div[2]/table/tbody/tr/td/div/table/tbody//td'
 
